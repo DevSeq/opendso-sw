@@ -36,13 +36,57 @@
 			clock-frequency = <50000000>;
 			compatible = "fixed-clock";
 		};
-		dsi_core_zynq_wrapper_0: dsi_core_zynq_wrapper@60000000 {
-			/* This is a place holder node for a custom IP, user may need to update the entries */
-			clock-names = "s_axil_ACLK", "s_axis_aclk";
-			clocks = <&misc_clk_0>, <&misc_clk_0>;
-			compatible = "xlnx,dsi-core-zynq-wrapper-1.0";
-			reg = <0x60000000 0x10000>;
+
+		dsi_host_0: tom-dsi-core@60000000 {
+			compatible = "tom,dsi";
+			reg = <0x60000000 0x1000>;
+			tom,dsi-num-lanes = <4>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+/*			tom,dsi-data-type = <MIPI_DSI_FMT_RGB888>;
+			#xlnx,vpss = <&v_proc_ss_0>;
+			#clock-names = "dphy_clk_200M", "s_axis_aclk";
+			#clocks = <&misc_clk_0>, <&misc_clk_1>;*/
+
+			encoder_dsi_port: port@0
+			{
+				reg = <0>;
+				dsi_encoder_port: endpoint {
+					remote-endpoint = <&dmaengine_mipi>;
+				};
+			};
+
+			/*simple_panel: simple-panel@0 {
+				compatible = "tom,opendso_panel";
+				reg = <0>;
+			};*/
+
+			simple_panel: simple-panel@0
+			{
+				compatible = "auo,b101uan01";
+				reg = <0>;
+			};
 		};
+
+		drm-pl-disp-drv {
+			compatible = "xlnx,pl-disp";
+			dmas = <&v_frmbuf_rd_0 0>;
+			dma-names = "dma0";
+			xlnx,vformat = "RGB888";
+			/* xlnx,bridge = <&dsi_host_0>; */
+
+			pl_disp_output: port@0
+			{
+				reg = <0>;
+				dmaengine_mipi: endpoint {
+					remote-endpoint = <&dsi_encoder_port>;
+				};
+			};
+		};
+
+
+
 		v_frmbuf_rd_0: v_frmbuf_rd@43c00000 {
 			#dma-cells = <1>;
 			clock-names = "ap_clk";
@@ -51,6 +95,7 @@
 			interrupt-names = "interrupt";
 			interrupt-parent = <&intc>;
 			interrupts = <0 29 4>;
+			reset-gpios = <&axi_gpio_0 0 0 1>;
 			reg = <0x43c00000 0x10000>;
 			xlnx,dma-addr-width = <32>;
 			xlnx,dma-align = <8>;
@@ -59,8 +104,46 @@
 			xlnx,pixels-per-clock = <1>;
 			xlnx,s-axi-ctrl-addr-width = <0x7>;
 			xlnx,s-axi-ctrl-data-width = <0x20>;
-			xlnx,vid-formats = "abgr8888";
+			xlnx,vid-formats = "rgb888";
 			xlnx,video-width = <8>;
 		};
+
+		xilinx_drm: xilinx_drm {
+			compatible = "xlnx,drm";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					drm_port: endpoint {
+						remote-endpoint = <&dsi_encoder_port>;
+					};
+				};
+			};
+
+			/*planes {
+				xlnx,pixel-format = "rgb888";
+				plane0 {
+					dmas = <&v_frmbuf_rd_0 0>;
+					dma-names = "dma0";
+				};
+			};*/
+		};
+
 	};
 };
+
+/*&tom-dsi-core
+{
+	panel@0 {
+		compatible = "tom,opendso_panel";
+		#reg = <0>;
+		#vdd3-supply = <&ldo16_reg>;
+		#vci-supply = <&ldo20_reg>;
+		#reset-gpios = <&gpe0 1 GPIO_ACTIVE_LOW>;
+		#te-gpios = <&gpx0 6 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+*/

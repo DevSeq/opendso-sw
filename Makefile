@@ -1,12 +1,4 @@
-XILINX_INSTALL_PATH=/mnt/data/Xilinx/SDK/2018.3/
-XILINX_PATH=$(XILINX_INSTALL_PATH)gnu/aarch32/lin/gcc-arm-linux-gnueabi/bin/
-XILINX_PATH_BIN=$(XILINX_INSTALL_PATH)/bin/
-MKIMAGE_PATH=$(PWD)/u-boot-xlnx/tools/
-DTC_PATH=$(PWD)/u-boot-xlnx/scripts/dtc/
-PATHS=$(XILINX_PATH):$(XILINX_PATH_BIN):$(MKIMAGE_PATH):$(DTC_PATH):$(PATH)
-CROSS_COMPILE=arm-linux-gnueabihf-
-ARCH=arm 
-UIMAGE_LOADADDR=0x8000
+include config.mk
 
 .PHONY: buildroot fsbl
 
@@ -23,8 +15,15 @@ linux_menuconfig:
 	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./linux-xlnx/ ARCH=$(ARCH) menuconfig
 	
 linux: linux-xlnx/.config
-	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./linux-xlnx/ ARCH=$(ARCH) UIMAGE_LOADADDR=$(UIMAGE_LOADADDR) uImage
+	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./linux-xlnx/ ARCH=$(ARCH) UIMAGE_LOADADDR=$(UIMAGE_LOADADDR) uImage -j8
 
+linux_modules: linux-xlnx/.config
+	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./linux-xlnx/ ARCH=$(ARCH) UIMAGE_LOADADDR=$(UIMAGE_LOADADDR) modules -j8
+
+linux_new:
+#	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./linux-xlnx/ ARCH=$(ARCH) clean
+#	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./linux-xlnx/ ARCH=$(ARCH) zynq_zturn_defconfig
+	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./linux-xlnx/ ARCH=$(ARCH) UIMAGE_LOADADDR=$(UIMAGE_LOADADDR) uImage -j8
 	
 u-boot-xlnx/.config: configs/uboot_zynq_z_turn_defconfig
 	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make distclean -C ./u-boot-xlnx/
@@ -32,6 +31,9 @@ u-boot-xlnx/.config: configs/uboot_zynq_z_turn_defconfig
 	
 	
 uboot: u-boot-xlnx/.config buildroot
+	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./u-boot-xlnx/
+
+uboot-only:
 	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./u-boot-xlnx/
 	
 		
@@ -43,7 +45,11 @@ uboot_savedefconfig:
 	cp ./u-boot-xlnx/defconfig configs/uboot_zynq_z_turn_defconfig
 	
 dt.dtb: uboot
-	PATH=$(PATHS):$(DTC_PATH) make -C ./DT/
+#	PATH=$(PATHS):$(DTC_PATH) make -C ./DT/
+
+dt-only:
+	#PATH=$(PATHS):$(DTC_PATH) make -C 
+	$(DTC) ./DT/DTC/uboot-zynq-zturn.dts > dt.dtb
 
 	
 buildroot_source:
@@ -66,6 +72,9 @@ buildroot: buildroot/.config
 fsbl:
 	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./FSBL/
 
+images-only:
+	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./IMAGE/
+
 images: fsbl uboot buildroot dt.dtb linux 
 	PATH=$(PATHS) CROSS_COMPILE=$(CROSS_COMPILE) make -C ./IMAGE/
 #git clone --depth 1 --recurse-submodules --shallow-submodules -j3 https://github.com/gitmodimo/openDSO.git
@@ -74,6 +83,10 @@ images: fsbl uboot buildroot dt.dtb linux
 
 # fatload mmc 0 0x1000000 top_wrapper.bit; fpga loadb 0 0x1000000 2083850
 # mmc dev 0 && fatload mmc 0 0x10000000 image.itb && bootm 0x10000000
+
+update-sd: dt-only images-only
+	cp IMAGE/boot.bin IMAGE/image.itb /media/twl/98CE-C84C
+	sync
 
 bootcmd:
 	tftpboot 0x1000000 top_wrapper.bit; fpga loadb 0 0x1000000 2083850;tftpboot 0x10000000 image.itb && bootm 0x10000000

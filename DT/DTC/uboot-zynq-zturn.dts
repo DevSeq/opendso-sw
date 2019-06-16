@@ -120,3 +120,6 @@
 		interrupts = <0x0 0x1e 0x4>;
 	};
 };
+
+
+/include/ "pl.dtsi"
